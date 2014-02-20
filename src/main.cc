@@ -6,6 +6,12 @@
 #include "color.h"
 #include "window.h"
 
+enum WindowID {
+  WINDOW_HOME = 0,
+  WINDOW_REPLY,
+  WINDOW_DM
+};
+
 int main() {
   initscr();
   color::initialize();  
@@ -27,11 +33,15 @@ int main() {
   refresh();
 
   prompt_window.deactivate();
-  windows[0].activate();
-  windows[1].deactivate();
-  windows[2].deactivate();
+  // TODO: pad for internal scrollable data.
+  windows[WINDOW_HOME].activate();
+  windows[WINDOW_REPLY].deactivate();
+  windows[WINDOW_DM].deactivate();
 
   wmove(prompt_window.window(), 1, 1);
+  wmove(windows[WINDOW_HOME].window(), 1, 1);
+  wmove(windows[WINDOW_REPLY].window(), 1, 1);
+  wmove(windows[WINDOW_DM].window(), 1, 1);
 
   int ch;
   std::string input;
@@ -52,20 +62,33 @@ int main() {
         windows[active_window].activate();
         break;
 
-      case KEY_ENTER:
-        mvprintw(23, 0, "Would tweet '%s'", input.c_str());
-        refresh();
+      case '\n':
+      case KEY_SEND:
+      case KEY_ENTER: {
+        wprintw(windows[active_window].window(), "%s\n", input.c_str());
+        int y, x;
+        getyx(windows[active_window].window(), y, x);
+        wmove(windows[active_window].window(), y, 1);
+        wrefresh(windows[active_window].window());
         input.clear();
         wmove(prompt_window.window(), 1, 1);
+        wclrtoeol(prompt_window.window());
+        wrefresh(prompt_window.window());
         break;
+      }
 
       case KEY_BACKSPACE: {
         if (!input.empty())
           input.pop_back();
+        // TODO: fix the border redraw issue.
+        /*
         int y, x;
         getyx(prompt_window.window(), y, x);
         mvwdelch(prompt_window.window(), y, std::max(1, x-1));
-        refresh();
+        */
+        wdelch(prompt_window.window());
+        mvwprintw(prompt_window.window(), 1, 1, "%s", input.c_str());
+        wrefresh(prompt_window.window());
         break;
       }
 
@@ -74,9 +97,11 @@ int main() {
         break;
 
       default:
-        waddch(prompt_window.window(), ch);
-        refresh();
-        input += ch;
+        if (input.size() < 140) {
+          input += ch;
+          mvwprintw(prompt_window.window(), 1, 1, "%s", input.c_str());
+          wrefresh(prompt_window.window());
+        }
         break;
     }
     prompt_window.deactivate();
